@@ -1,0 +1,82 @@
+- name: Get Running JVM list
+  ansible.builtin.shell: ps -ef|grep java|egrep "Dwas"|grep -v grep|awk {'print $1 "|" $(NF-3)  "|" $NF '} | grep -v nodeagent | grep -v dmgr
+  register: was_jvm_list
+  ignore_errors: true
+  
+- debug:
+    var: was_jvm_list.stdout_lines
+
+
+- name: Store Running jvm list
+  set_fact: 
+     jvm_list: '{{ jvm_list | default([]) + [{"path": path1, "name": name1, "user": user1 }] }}'
+  vars:
+     path1: "{{ item.split('|')[1] }}"
+     name1: "{{ item.split('|')[2] }}"
+     user1: "{{ item.split('|')[0] }}"
+  loop: "{{ was_jvm_list.stdout_lines }}"
+  when: was_jvm_list.rc | int == 0
+
+- name: Get Running nodeagent list
+  ansible.builtin.shell: ps -ef|grep java|egrep "Dwas"|grep -v grep|awk {'print $1 "|" $(NF-3)  "|" $NF '} | grep nodeagent 
+  register: was_nodeagent_list
+  ignore_errors: true
+
+- name: Store Running nodeagent list
+  set_fact: 
+     nodeagent_list: '{{ nodeagent_list | default([]) + [{"path": path1, "name": name1, "user": user1 }] }}'
+  vars:
+     path1: "{{ item.split('|')[1] }}"
+     name1: "{{ item.split('|')[2] }}"
+     user1: "{{ item.split('|')[0] }}"
+  loop: "{{ was_nodeagent_list.stdout_lines }}"
+  when: was_nodeagent_list.rc | int == 0
+
+- name: Get Running dmgr list
+  ansible.builtin.shell: ps -ef|grep java|egrep "Dwas"|grep -v grep|awk {'print $1 "|" $(NF-3)  "|" $NF '} | grep dmgr
+  register: was_dmgr_list
+  ignore_errors: true
+ 
+- name: Store Running dmgr list
+  set_fact: 
+     dmgr_list: '{{ dmgr_list | default([]) + [{"path": path1, "name": name1, "user": user1 }] }}'
+  vars:
+     path1: "{{ item.split('|')[1] }}"
+     name1: "{{ item.split('|')[2] }}"
+     user1: "{{ item.split('|')[0] }}"
+  loop: "{{ was_dmgr_list.stdout_lines }}"
+  when: was_dmgr_list.rc | int == 0
+  
+- name: Get Running httpd list
+  ansible.builtin.shell: ps -aef | grep httpd | grep -v grep | awk '{ print $8 }' | uniq 
+  register: ihs_httpd_list
+  ignore_errors: true
+
+- name: Store Running httpd list
+  set_fact: 
+     httpd_list: '{{ httpd_list | default([]) + [{"path": path1, "name": name1, "user": user1 }] }}'
+  vars:
+     path1: "{{ item | replace('httpd', '') }}"
+     name1: "httpd"
+     user1: "root"
+  loop: "{{ ihs_httpd_list.stdout_lines }}"
+  when: ihs_httpd_list.rc | int == 0
+
+- name: Store all list
+  set_fact: 
+     all_list: '{{ {"jvm_list" : jvm_list, "nodeagent_list": nodeagent_list, "dmgr_list": dmgr_list, "httpd_list": httpd_list } }}'
+  vars:
+     all_list: {}
+- debug:
+     var: all_list
+
+- name: copy list into file
+  ansible.builtin.copy:
+     content: "{{ all_list | to_nice_yaml }}"
+     dest: /tmp/running_jvm_list.yml
+     #owner: prityks
+  become: true
+
+
+     
+  
