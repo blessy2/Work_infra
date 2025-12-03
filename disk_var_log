@@ -1,0 +1,95 @@
+- name: Smart compress and clean up /var/log/messages for Linux servers
+  hosts: all
+  become: true
+  gather_facts: true
+
+  tasks:
+
+    - name: Run only on Linux servers
+      ansible.builtin.meta: end_play
+      when: ansible_system != "Linux"
+
+    - name: Get disk usage percentage of /var/log
+      ansible.builtin.shell: df /var/log | awk 'NR==2 {gsub("%",""); print $5}'
+      register: var_log_usage
+      changed_when: false
+
+    - name: Show /var/log usage
+      ansible.builtin.debug:
+        msg: "/var/log is {{ var_log_usage.stdout }}% full"
+
+    - name: Set current date
+      ansible.builtin.shell: date +%Y%m%d
+      register: current_date
+      changed_when: false
+
+    - name: Copy and compress from /tmp if /var/log usage > 80%
+      block:
+
+        - name: Copy /var/log/messages to /tmp/messages
+          ansible.builtin.copy:
+            src: /var/log/messages
+            dest: /tmp/messages
+            remote_src: yes
+
+        - name: Nullify /var/log/messages
+          ansible.builtin.shell: ": > /var/log/messages"
+          
+        - name: Show disk usage after cleanup
+          ansible.builtin.shell: df -h /var/log
+          register: disk_usage_after_null
+          changed_when: false
+    
+        - name: Display disk usage after
+          ansible.builtin.debug:
+            msg: "{{ disk_usage_after_null.stdout }}"
+            
+        - name: Gzip /tmp/messages and move to /var/log
+          ansible.builtin.shell: |
+            gzip -c /tmp/messages > /var/log/messages_{{ current_date.stdout }}.gz
+          args:
+            executable: /bin/bash
+
+        - name: Remove /tmp/messages
+          ansible.builtin.file:
+            path: /tmp/messages
+            state: absent
+
+      when: var_log_usage.stdout | int > 80
+
+    - name: Direct compress if /var/log usage <= 80%
+      block:
+
+        - name: Compress /var/log/messages directly
+          ansible.builtin.shell: |
+            gzip -c /var/log/messages > /var/log/messages_{{ current_date.stdout }}.gz
+          args:
+            executable: /bin/bash
+
+        - name: Nullify /var/log/messages
+          ansible.builtin.shell: ": > /var/log/messages"
+
+      when: var_log_usage.stdout | int <= 80
+
+    - name: Find messages* files older than 300 days
+      ansible.builtin.find:
+        paths: /var/log/
+        patterns: "messages*"
+        age: 300d
+        recurse: no
+      register: old_messages_files
+
+    - name: Remove old messages files
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ old_messages_files.files }}"
+
+    - name: Show disk usage after cleanup
+      ansible.builtin.shell: df -h /var/log
+      register: disk_usage_after
+      changed_when: false
+
+    - name: Display disk usage after
+      ansible.builtin.debug:
+        msg: "{{ disk_usage_after.stdout }}"
