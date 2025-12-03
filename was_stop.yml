@@ -1,0 +1,40 @@
+
+- include_tasks: collect_store_process_detail.yml
+
+- name: Get content of remote file
+  ansible.builtin.slurp:
+    src: /tmp/running_jvm_list.yml
+  register: remote_file
+
+- name: Interpret remote file content as yaml
+  ansible.builtin.set_fact:
+    remote_yaml: '{{ remote_file.content | b64decode | from_yaml }}'
+
+#- name: Print yaml for debugging purposes
+#  ansible.builtin.debug:
+#    var: remote_yaml
+
+- name: Stopping jvms
+  shell: "su - {{ item.user }} {{ item.path | replace('config', '') }}/bin/stopServer.sh {{ item.name }}"
+  loop: "{{ remote_yaml['jvm_list'] }}"
+  become: true
+  ignore_errors: true
+
+- name: Stopping nodeagent
+  shell: "su - {{ item.user }} -c  {{ item.path | replace('config', '') }}/bin/stopNode.sh"
+  loop: "{{ remote_yaml['nodeagent_list'] }}"
+  become: true
+  ignore_errors: true
+
+- name: Stopping dmgr
+  shell: "su - {{ item.user }} {{ item.path | replace('config', '') }}/bin/stopManager.sh"
+  loop: "{{ remote_yaml['dmgr_list'] }}"
+  become: true
+  ignore_errors: true
+  
+- name: Stopping httpd
+  shell: "{{ item.path }}/apachectl stop"
+  loop: "{{ remote_yaml['httpd_list'] }}"
+  become: true
+  become_user: "{{ item.user }}"
+  ignore_errors: true
