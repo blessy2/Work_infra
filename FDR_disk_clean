@@ -1,0 +1,36 @@
+# ------------------------------------------------------------------------------
+# Author: Blessy S
+# Description: This playbook cleans up .phd and javacore.* files from the
+#              specified directory and logs each deletion. It also displays
+#              disk usage for /projects.
+# ------------------------------------------------------------------------------
+
+---
+- name: Cleanup .phd and javacore.* files and log actions
+  hosts: all
+  become: yes
+
+  tasks:
+    - name: Find and delete .phd files and log each deletion
+      shell: |
+        for file in $(find /projects/w3/finance_glui/bin/batch/GluiBatchJobs -name "*.phd"); do
+          rm -f "$file" && echo "$(date): Deleted $file" >> /home/gluiats/log_core.log
+        done
+      args:
+        executable: /bin/bash
+
+    - name: Find and delete javacore.* files and log each deletion
+      shell: |
+        for file in $(find /projects/w3/finance_glui/bin/batch/GluiBatchJobs -name "javacore.*"); do
+          rm -f "$file" && echo "$(date): Deleted $file" >> /home/gluiats/log_core.log
+        done
+      args:
+        executable: /bin/bash
+
+    - name: Display disk space usage for /projects
+      command: df -gt /projects
+      register: disk_space
+
+    - name: Show disk space output
+      debug:
+        var: disk_space.stdout
