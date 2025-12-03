@@ -1,0 +1,42 @@
+---
+- name: Find IMShared directory and clean up files
+  hosts: all
+  gather_facts: no
+  tasks:
+    - name: Find IMShared directory and delete non-JAR files
+      shell: |
+        IMSHARED_DIR=$(find / -type d -name "IMShared" 2>/dev/null | head -n 1)
+        if [ -n "$IMSHARED_DIR" ]; then
+            echo "IMShared directory found: $IMSHARED_DIR"
+            OS_TYPE=$(uname -s)
+            GREEN_BOLD="\033[1;32m"
+            RESET_COLOR="\033[0m"
+            
+            echo -e "\nBefore Housekeeping:"
+            if [ "$OS_TYPE" = "AIX" ]; then
+                echo -e "${GREEN_BOLD}$(df -gt "$IMSHARED_DIR")${RESET_COLOR}"
+            elif [ "$OS_TYPE" = "Linux" ]; then
+                echo -e "${GREEN_BOLD}$(df -h "$IMSHARED_DIR")${RESET_COLOR}"
+            fi
+
+            if [ -d "$IMSHARED_DIR/files" ]; then
+                echo "Cleaning up $IMSHARED_DIR/files"
+                find "$IMSHARED_DIR/files" -type f ! -name "*.jar" -exec rm -f {} +
+                find "$IMSHARED_DIR/files" -type d -empty -delete
+            fi
+
+            echo -e "\nAfter Housekeeping:"
+            if [ "$OS_TYPE" = "AIX" ]; then
+                echo -e "${GREEN_BOLD}$(df -gt "$IMSHARED_DIR")${RESET_COLOR}"
+            elif [ "$OS_TYPE" = "Linux" ]; then
+                echo -e "${GREEN_BOLD}$(df -h "$IMSHARED_DIR")${RESET_COLOR}"
+            fi
+        else
+            echo "IMShared directory not found."
+        fi
+      register: result
+      changed_when: false
+
+    - name: Display output
+      debug:
+        msg: "{{ result.stdout_lines }}"
