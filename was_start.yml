@@ -1,0 +1,37 @@
+- name: Get content of remote file
+  ansible.builtin.slurp:
+    src: /tmp/running_jvm_list.yml
+  register: remote_file
+
+- name: Interpret remote file content as yaml
+  ansible.builtin.set_fact:
+    remote_yaml: '{{ remote_file.content | b64decode | from_yaml }}'
+
+#- name: Print yaml for debugging purposes
+#  ansible.builtin.debug:
+#    var: remote_yaml
+
+- name: Starting dmgr
+  shell: "su - {{ item.user }} {{ item.path | replace('config', '') }}/bin/startManager.sh"
+  loop: "{{ remote_yaml['dmgr_list'] }}"
+  become: true
+  ignore_errors: true
+  
+- name: Starting nodeagent
+  shell: "su - {{ item.user }} {{ item.path | replace('config', '') }}/bin/startNode.sh"
+  loop: "{{ remote_yaml['nodeagent_list'] }}"
+  become: true
+  ignore_errors: true
+
+- name: Starting jvms
+  shell: "su - {{ item.user }} {{ item.path | replace('config', '') }}/bin/startServer.sh {{ item.name }}"
+  loop: "{{ remote_yaml['jvm_list'] }}"
+  become: true
+  ignore_errors: true
+  
+- name: Starting httpd
+  shell: "{{ item.path | replace('httpd', '')}}/apachectl start"
+  loop: "{{ remote_yaml['httpd_list'] }}"
+  become: true
+  ignore_errors: true
+  
