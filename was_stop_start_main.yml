@@ -1,0 +1,17 @@
+
+---
+# tasks file for WAS_STOP_START
+#- name: Collect and Store Process Detail
+#  ansible.builtin.include_tasks: collect_store_process_detail.yml
+#  
+- name: Including Stop WAS Processes Task
+  ansible.builtin.include_tasks: Stop_Was_Process.yml
+  when: action_was == "stop"
+
+- name: Including Start WAS Processes Task
+  ansible.builtin.include_tasks: Start_Was_Process.yml
+  when: action_was == "start"
+  
+- name: Including Start WAS Processes Task
+  ansible.builtin.include_tasks: collect_store_process_detail.yml
+  when: action_was == "record_running_process"
